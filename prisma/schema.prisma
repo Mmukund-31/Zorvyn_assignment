@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  VIEWER
+  ANALYST
+  ADMIN
+}
+
+enum RecordType {
+  INCOME
+  EXPENSE
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  name         String
+  role         Role      @default(VIEWER)
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  records FinancialRecord[]
+
+  @@map("users")
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  type      RecordType
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  records FinancialRecord[]
+
+  @@map("categories")
+}
+
+// DECIMAL(18,4) is used for all monetary amounts.
+// Rationale: floating-point types (Float/Double) cannot represent most decimal
+// fractions exactly (e.g. 0.1 + 0.2 != 0.3). For financial data, exact
+// representation is non-negotiable. DECIMAL(18,4) stores values precisely.
+model FinancialRecord {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  amount      Decimal    @db.Decimal(18, 4)
+  type        RecordType
+  date        DateTime
+  categoryId  String     @map("category_id")
+  createdById String     @map("created_by_id")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  deletedAt   DateTime?  @map("deleted_at")
+
+  category  Category @relation(fields: [categoryId], references: [id])
+  createdBy User     @relation(fields: [createdById], references: [id])
+
+  // Indexes on fields used in dashboard aggregations and record filtering
+  @@index([date])
+  @@index([categoryId])
+  @@index([type])
+  @@index([createdById])
+  @@index([deletedAt])
+  @@map("financial_records")
+}
